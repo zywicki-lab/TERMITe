@@ -31,6 +31,8 @@ Two variations of the Term-seq protocol are described in the following papers:
 
 Due to a significant number of external dependencies, we highly recommend using Docker to install and use TERMITe. Docker can be downloaded from [this link](https://www.docker.com).
 
+Following commands will download TERMITe and build a docker container
+
 ```{bash}
 git clone https://github.com/zywicki-lab/TERMITe-dev.git
 cd TERMITe-dev
@@ -38,15 +40,14 @@ docker build . -t termite
 ```
 
 <hr>
-<br>
-<br>
-<br>
 
 ## Help
 
 To see the manual and available options, run
 
 	docker run --rm -v $(pwd):/data --platform=linux/amd64 termite --help
+
+where $(pwd) is a location of a working directory, usually containing data for analysis.
 
 Running TERMITe is a two-step process. First, you need to invoke the module dedicated to the identification of the stable 3'RNA ends (`find_stable_rna_ends`) and then optionally annotate the results (`annotate`).
 
@@ -393,6 +394,9 @@ docker run --rm -v $(pwd):/data --platform=linux/amd64 termite find_stable_rna_e
 	--min-no-comp 3
 ```
 <hr>
+
+where $(pwd) is a location of a working directory, usually containing data for analysis.
+
 ```{bash}
 docker run --rm -v $(pwd):/data --platform=linux/amd64 termite find_stable_rna_ends \
 	--rna-3prime-ends /data/ERR1248372.r.bw /data/ERR1248373.r.bw /data/ERR1248374.r.bw \
