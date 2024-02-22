@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+# coding=utf-8
+
+from termite_pkg.argument_parser import parse_arguments_termite
+import logging
+from termite_pkg.termite_main import Peak, PeakCaller, IDR, Result
+from termite_pkg.termite_annotate import assign_bigwigs_to_samples, Sample, AnnotateResults, RNAfold
+from os import path, system
+import itertools
+import argparse
+from typing import List, Set, Dict, Tuple, Optional, Union, Sequence
+from pathlib import Path
+
+
+logging.basicConfig(level = logging.INFO)
+
+def run_termite(args : argparse.Namespace):
+	"""Runs the TERMITe's main module
+
+	Args:
+		args (argparse.Namespace): argparse object (argument parser)
+	"""
+
+	for sample in range(len(args.sample_names)):
+		sample_name = args.sample_names[sample]
+		bigwig_termseq = args.rna_3prime_ends[sample]
+		bigwig_rnaseq = None if not isinstance(args.rnaseq, list) else args.rnaseq[sample]
+		strand = "+" if args.strand == "forward" else "-"
+  
+		pc = PeakCaller(bigwig_termseq=bigwig_termseq,
+						sample_name=sample_name, strand=strand)
+  
+		chrom_sizes = pc.chrom_sizes
+		pc.callPeaks(min_dist=args.min_dist, prominence=(None, None), width=(1, None), height=(0, None), rel_height=0.5)
+		pc.savePeaksToNarrowPeaks(f"{path.join(args.out_dir, sample_name)}_{args.strand}.narrowPeak")
+	
+	idr_results = []
+	for pairwise_comb in itertools.combinations(args.sample_names, 2):
+		files = [f"{path.join(args.out_dir, x)}_{args.strand}.narrowPeak" for x in pairwise_comb]
+		idr = IDR(samples=pairwise_comb, files=files, output_dir=args.out_dir, idr_threshold=args.idr, strand=args.strand)
+		idr.runIDR()
+		idr_results.append(idr)
+  
+	output_bedgraph = f"idrs_{'-'.join(args.sample_names)}_{args.strand}.bedgraph"
+	unionbedg_df = IDR.combineIDRs(idr_results, path.join(args.out_dir, output_bedgraph), chrom_sizes)
+	result = Result(unionbedg_df=unionbedg_df, idr_threshold=args.idr, min_no_comp=args.min_no_comp, strand=args.strand,
+					sample_names=args.sample_names, bigwigs_termseq=args.rna_3prime_ends, bigwigs_rnaseq=args.rnaseq,
+	 				prefix=args.name_prefix)
+ 
+	if args.rnaseq is not None:
+		result.calculateTerminationEfficiency(window_size=10, min_upstream=args.min_upstream)
+
+	output_result = f"{path.join(args.out_dir, '3prime_RNA_termini')}_{'-'.join(args.sample_names)}_{args.strand}.narrowPeak"
+	result.saveResultToBED(output_file=output_result, min_termination_efficiency=args.min_effi)
+ 
+	output_result = f"{path.join(args.out_dir, 'sequences')}_{'-'.join(args.sample_names)}_{args.strand}.fasta"
+	if args.genome is not None:
+		result.extractSequence(output_file=output_result, window_size=args.window_size, genome=args.genome,
+						 	   min_termination_efficiency=args.min_effi)
+  
+	logging.info("Finished successfully. Thank you for using TERMITe.")
+
+
+def run_termite_annotatate(args : argparse.Namespace):
+	"""Runs the TERMITe's annotate module
+
+	Args:
+		args (argparse.Namespace): argparse object (argument parser)
+
+	Raises:
+		FileNotFoundError: couldn't save results in the output file.
+	"""
+
+	samples = []
+	logging.info(f"Parsing input data")
+	for i in range(len(args.sample_names)):
+		sample = Sample(sample_name=args.sample_names[i], forward_file=args.termite_out_forward[i], reverse_file=args.termite_out_reverse[i],
+						forward_bigwigs=assign_bigwigs_to_samples(args.sample_names[i], args.rna_3prime_ends_forward),
+						reverse_bigwigs=assign_bigwigs_to_samples(args.sample_names[i], args.rna_3prime_ends_reverse),
+						forward_rnaseq_bigwigs=assign_bigwigs_to_samples(args.sample_names[i], args.rna_seq_coverage_forward),
+						reverse_rnaseq_bigwigs=assign_bigwigs_to_samples(args.sample_names[i], args.rna_seq_coverage_reverse))
+		sample.parseInputData()
+		samples.append(sample)
+	termite_results = Sample.mergeSamplesUsingBedtools(samples=samples, output_file=f"{args.output}_merged_final.bed", window_size=10, min_upstream=args.min_upstream)
+	annotatedResults = AnnotateResults(output_prefix=args.output, gene_annotations=args.gene_annotations, genome_fasta=args.genome,
+								samples=samples, termite_results=termite_results, args=args)
+	if args.rnafold:
+		rnafold = RNAfold(df = annotatedResults.df, genome_fasta=args.genome, max_distance_to_hairpin=args.max_distance_to_hairpin,
+                    	  min_distance_to_hairpin=args.min_distance_to_hairpin)
+	df = rnafold.df if args.rnafold else annotatedResults.df
+
+	### change the order of columns
+	desired_column_order = ["chromosome", "start", "end", "POT", "sequence", "strand", "termite_id", "termite_score", "average_peak_height",
+                         	"termination_efficiency"] + [f"termination_efficiencies_{sample}" for sample in args.sample_names] + ["idr", "summit_coordinate", "overlapping_gene", "upstream_gene", "downstream_gene", "overlapping_feature_types",
+                            "transtermhp_closest_hairpin_start",
+                            "transtermhp_closest_hairpin_end", "transtermhp_id", "transtermhp_confidence", "transtermhp_location",
+                            "transtermhp_hairpin_score", "transtermhp_tail_score", "transtermhp_a_tract", "transtermhp_hairpin", "transtermhp_u_tract",
+                            "transtermhp_distance_to_hairpin", "rnafold_a_tract", "rnafold_hairpin", "rnafold_u_tract", "rnafold_hairpin_structure",
+                            "rnafold_distance_to_hairpin", "rnafold_energy", "rnafold", "transtermhp"]
+ 
+	cols = [x for x in desired_column_order if x in df.columns]
+	additional_cols = [x for x in df.columns if x not in desired_column_order]
+	cols = cols + additional_cols
+	df = df[cols]
+ 
+	del df["name"]
+	del df["score"]
+	del df["starts"]
+	del df["ends"]
+	try:
+		del df["transtermhp_location"]
+	except KeyError:
+		pass
+	for sample in args.sample_names:
+		try:
+			del df[f"termination_efficiencies_{sample}"]
+		except KeyError:
+			pass
+	###
+	
+		
+	#save the output
+	try:
+		df.to_csv(f"{args.output}.tsv", sep="\t", index=False)
+	except Exception as e:
+		logging.error(f"Couldn't save results in the {args.output}.tsv.\n")
+		raise FileNotFoundError(e)
+		
+
+	#cleaning
+	fl = Path(f"{args.output}_transterm.tab")
+	if fl.is_file():
+		system(f"rm {args.output}_transterm.tab")
+	fl = Path(f"{args.output}_merged_final.bed")
+	if fl.is_file():
+		system(f"rm {args.output}_merged_final.bed")
+	fl = Path(f"{args.output}_fake_genes.coords")
+	if fl.is_file():
+		system(f"rm {args.output}_fake_genes.coords")
+	fl = Path(f"{args.output}_transterm_predictions.tt")
+	if fl.is_file():
+		system(f"rm {args.output}_transterm_predictions.tt")
+	
+	logging.info("Finished successfully. Thank you for using TERMITe.")
+
+
+def main():
+	args = parse_arguments_termite()
+	if args.command == "find_stable_rna_ends":
+		run_termite(args)
+	elif args.command == "annotate":
+		run_termite_annotatate(args)
+ 
+
+if __name__ == "__main__":
+	main()
