@@ -17,7 +17,7 @@ RUN apt-get update -y && apt-get install -y build-essential \
                                             curl nano git gcc \
                                             wget zlib1g \
                                             unzip zlib1g-dev
-RUN micromamba install -n base -c bioconda -c anaconda -c conda-forge bedtools idr pybigwig viennarna pybedtools transtermhp
+RUN micromamba install -n base -c bioconda -c anaconda -c conda-forge bedtools idr pybigwig viennarna pybedtools transtermhp samtools pysam
 RUN pip install numpy==1.21 pandas scipy biopython pybigwig gffutils
 
 RUN pip install ViennaRNA

@@ -31,11 +31,18 @@ Two variations of the Term-seq protocol are described in the following papers:
 
 Due to a significant number of external dependencies, we highly recommend using Docker to install and use TERMITe. Docker can be downloaded from [this link](https://www.docker.com).
 
-Following commands will download TERMITe and build a docker container
+You can directly download the docker image (AMD64) from docker hub
 
 ```{bash}
-git clone https://github.com/zywicki-lab/TERMITe-dev.git
-cd TERMITe-dev
+docker pull jankdocker1994/termite
+docker tag jankdocker1994/termite termite
+```
+
+or use the following commands to clone the TERMITe repository and build a docker container
+
+```{bash}
+git clone https://github.com/zywicki-lab/TERMITe.git
+cd TERMITe
 docker build . -t termite
 ```
 
