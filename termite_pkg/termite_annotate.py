@@ -258,9 +258,10 @@ class Sample:
                             c = s.mean_fwd_cov[row["chromosome"]][row["start"]: row["end"]]
                         elif strand == "reverse":
                             c = s.mean_rev_cov[row["chromosome"]][row["start"]: row["end"]][::-1]
+                        c = [0 if isnan(x) else x for x in c]
                         max_height = max(c)
                         ind_max_height = [int(x) for x in np.where(c==max_height)[0]]
-                        summit = ind_max_height[-1]
+                        summit = 0 if not ind_max_height else ind_max_height[-1]
                         peak_summit_coord = row["start"] + summit + 1 if strand == "forward" else row["end"] - summit
                         
                         # termination efficiency
@@ -746,9 +747,10 @@ class AnnotateResults:
                     coverage = bw_termseq.values(chromosome, start, end, numpy=True)
                     coverages.append(coverage)
             c = np.mean(coverages, axis=0)
+            c = [0 if isnan(x) else x for x in c]
             max_height = max(c)
             ind_max_height = [int(x) for x in np.where(c==max_height)[0]]
-            summit = ind_max_height[-1]
+            summit = 0 if not ind_max_height else ind_max_height[-1]
             peak_summit_coord = start + summit + 1
             pots.append(peak_summit_coord)
         df["POT"] = pots
