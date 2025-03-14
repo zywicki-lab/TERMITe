@@ -472,8 +472,8 @@ class Result:
 			c = mean_d[row["chromosome"]][row["start"]: row["end"]]
 			c = c if self.strand == "forward" else c[::-1]  # for the reverse strand we need to calculate this 'backwards'
 			max_height = max(c)
-			ind_max_height = [int(x) for x in np.where(c==max_height)[0]]
-			summit = ind_max_height[-1]
+			ind_max_height = [int(x) for x in np.where(c==max_height)[0]]         
+			summit = 0 if not ind_max_height else ind_max_height[-1]
 			heights.append(max_height)
 			summits.append(summit)
 			peak_names.append(f"{prefix}_3prime_signal_{self.strand}_{counter}")
