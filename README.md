@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/761697993.svg)](https://doi.org/10.5281/zenodo.15418609)
+
 # TERMITe
 
 <b>a tool for identifying and analyzing transcription termination signals based on bacterial term-seq data</b>
